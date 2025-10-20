@@ -2,16 +2,20 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <!-- Zoom par défaut (évite “trop gros” au chargement) -->
+  <!-- Zoom par défaut minimal -->
   <meta name="viewport" content="width=device-width, initial-scale=0.8, maximum-scale=1.0, user-scalable=no">
   <title>Tableau de Garde - Hôpital (Firebase)</title>
 
-  <!-- Zoom CSS (Chrome/Edge/Safari) + fallback Firefox -->
+  <!-- Zoom CSS (Chrome/Safari/Edge + fallback Firefox) -->
   <style>
     :root { --ui-zoom: 0.80; }
     html { zoom: var(--ui-zoom); }
     @-moz-document url-prefix() {
-      body { transform: scale(var(--ui-zoom)); transform-origin: 0 0; width: calc(100% / var(--ui-zoom)); }
+      body {
+        transform: scale(var(--ui-zoom));
+        transform-origin: 0 0;
+        width: calc(100% / var(--ui-zoom));
+      }
     }
   </style>
 
@@ -22,18 +26,13 @@
       --shadow: 0 8px 30px rgba(0,0,0,.35); --radius:14px;
     }
     *{box-sizing:border-box}
-    body{
-      margin:0; color:var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      background: radial-gradient(1200px 900px at 20% -10%, #1e293b 0%, #0f172a 60%);
-    }
-    .header{
-      padding:20px 12px; text-align:center;
+    body{ margin:0; color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background: radial-gradient(1200px 900px at 20% -10%, #1e293b 0%, #0f172a 60%); }
+    .header{ padding:20px 12px; text-align:center;
       background: linear-gradient(135deg, rgba(37,99,235,.35), rgba(124,58,237,.30));
-      border-bottom:1px solid rgba(255,255,255,.08); backdrop-filter: blur(6px);
-    }
+      border-bottom:1px solid rgba(255,255,255,.08); backdrop-filter: blur(6px); }
     .header h1{margin:0; font-size:26px}
-    #date { font-size: 3.2rem; font-weight: 600; color: #f1f5f9; letter-spacing:.5px; margin-top: 6px; text-shadow:0 1px 2px rgba(0,0,0,.4); }
+    #date { font-size: 3.4rem; font-weight: 600; color: #f1f5f9; letter-spacing:.5px; margin-top: 6px; text-shadow:0 1px 2px rgba(0,0,0,.4); }
 
     .sync-bar{display:flex; gap:10px; align-items:center; justify-content:center; font-size:13px; padding:8px 10px; opacity:.9}
     .dot{width:9px;height:9px;border-radius:50%}
@@ -55,97 +54,72 @@
     @media (max-width:1100px){ .container{grid-template-columns:1fr} }
 
     .card,.board{background:var(--card); border:1px solid rgba(255,255,255,.10); border-radius:var(--radius); box-shadow:var(--shadow); padding:12px}
-    .section-header{
-      font-weight:800; letter-spacing:.3px; margin:2px 0 8px; text-align:center; color:#fff; font-size:24px;
-      text-transform: uppercase; position:relative;
-    }
-    .section-header::after{
-      content:""; position:relative; display:block; width:60%; height:2px; margin:6px auto 0; border-radius:2px;
-      background: linear-gradient(to right, #2563eb, #38bdf8);
-    }
-
+    .section-header{font-weight:700; letter-spacing:.3px; margin:2px 0 8px; text-align:center; color:#dbeafe}
     table{width:100%; border-collapse:collapse; overflow:hidden; border-radius:12px}
     th,td{padding:10px 10px; text-align:center}
-    thead th{
-      background: linear-gradient(180deg, rgba(37,99,235,.30), rgba(124,58,237,.18));
-      border-bottom:1px solid rgba(255,255,255,.12); font-size:14px
-    }
+    thead th{background: linear-gradient(180deg, rgba(37,99,235,.30), rgba(124,58,237,.18)); border-bottom:1px solid rgba(255,255,255,.12); font-size:13px}
     tbody td{border-top:1px solid rgba(255,255,255,.06)}
     input, select, textarea{
-      width:100%; padding:10px 12px; border-radius:10px; outline:none;
+      width:100%; padding:10px 12px; border-radius:10px; outline: none;
       background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); color:var(--text);
     }
     input::placeholder, textarea::placeholder{color:#94a3b866}
     .actions{display:flex; gap:6px; justify-content:center}
-
     .tag{ font-size:1.1rem; padding:4px 10px; color:#fff; background:#1e40af; border:1px solid rgba(255,255,255,.18); border-radius:10px; display:inline-block; margin-right:6px; }
     .tag.j{ background:#2563eb; } .tag.n{ background:#dc2626; }
+    .service-badge{display:inline-block; padding:6px 12px; border-radius:10px; font-size:18px; font-weight:700; min-width:160px; text-align:center;
+      background: rgba(99,102,241,.22); border: 1px solid rgba(99,102,241,.45); color: #fff; }
     .td-left{ text-align:left; color:#cbd5e1; font-weight:600; }
     .tight table tbody td{padding-top:6px; padding-bottom:6px}
 
-    /* Layout colonne droite */
+    /* Grilles à droite */
     .right-grid { display:grid; grid-template-columns: repeat(2, minmax(340px, 1fr)); gap:12px; align-items:start; }
     .lower-grid { display:grid; grid-template-columns: repeat(2, minmax(340px, 1fr)); gap:12px; align-items:start; margin-top:12px; }
     @media (max-width: 1200px) { .right-grid, .lower-grid { grid-template-columns: 1fr; } }
+
+    /* Pleine largeur */
     .full-width{ grid-column: 1 / -1; }
 
-    /* Badges véhicules / régulateurs */
-    .vehicule-badge{ font-weight:800; color:#ef4444; letter-spacing:.5px; text-align:left; padding-left:8px; font-size:30px }
-    .reg-badge{ font-weight:800; color:#22c55e; letter-spacing:.5px; text-align:left; padding-left:8px; font-size:30px }
-    #regulateurNuitTable .reg-badge{ color:#ef4444; }
+    /* Badges */
+    .vehicule-badge{ font-weight:800; color:#ef4444; letter-spacing:.5px; text-align:left; padding-left:8px; }
+    .reg-badge{ font-weight:800; color:#22c55e; letter-spacing:.5px; text-align:left; padding-left:8px; }
+    #regulateurNuitTable .reg-badge{ color:#ef4444; } /* N1/N2 rouge */
 
-    /* Médecins (entrées grandes) */
-    #medecinTable input[list="medecinsList"]{ font-size: 26px; font-weight: 700; padding: 10px 12px; }
-    #medecinTable .service-badge{
-      display:flex; align-items:center; justify-content:center;
-      font-size:24px; font-weight:800; padding:10px 14px; min-width:180px; min-height:56px;
-      background: rgba(99,102,241,.22); border:1px solid rgba(99,102,241,.45); color:#fff; border-radius:10px; text-align:center;
+    /* Pharmacie lisible (base) */
+    #pharmacieTable thead th{ font-size:14px }
+    #pharmacieTable .pharm-nom input{ font-size:16px; font-weight:800; }
+    #pharmacieTable .pharm-addr textarea{ min-height:56px; font-size:14px; line-height:1.35; resize:vertical; }
+    #pharmacieTable .pharm-dect input{ font-weight:700; letter-spacing:.3px; }
+
+    /* ===================== CHAT MINI ===================== */
+    .chat-mini { margin-top: 12px; }
+    .chat-mini .section-header { margin-bottom: 6px; }
+    .chat-editor {
+      display: grid;
+      grid-template-columns: 160px 1fr auto; /* Nom / Message / Bouton */
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
     }
-    #medecinTable td input[type="text"]{ font-size:26px; font-weight:700; height:40px; }
-
-    /* SMUR */
-    #smurPrimaireTable td input, #smurSecondaireTable td input{ font-size:26px; font-weight:700; height:42px; }
-
-    /* Régulateurs : DECT large */
-    #regulateurJourTable .rj-dect, #regulateurNuitTable .rn-dect{ font-size:26px; font-weight:700; height:42px; text-align:center }
-
-    /* Ambulance de Garde (champs) */
-    #ambulanceGardeJourTable td input, #ambulanceGardeNuitTable td input{ font-size:26px; font-weight:700; height:42px; text-align:center }
-    #ambulanceGardeJourTable .vehicule-badge, #ambulanceGardeNuitTable .vehicule-badge{ font-size:32px; }
-
-    /* Pharmacies — lisibilité ++ */
-    #pharmacieTable { background: rgba(0,60,150,.25); border-radius:12px; padding:16px; width:100%; margin-top:16px; font-size:22px; }
-    #pharmacieTable th { background: rgba(0,80,180,.4); color:#fff; font-size:24px; padding:12px 8px; text-align:left; }
-    #pharmacieTable td { padding:10px 8px; vertical-align:middle; }
-    #pharmacieTable input[type="text"], #pharmacieTable textarea{
-      font-size:22px; font-weight:600; padding:10px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.2);
-      color:#f1f5f9; background: rgba(255,255,255,.07); width:100%;
+    .chat-editor input,
+    .chat-editor textarea {
+      font-size: 25px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.05);
+      color: #f1f5f9;
     }
-    #pharmacieTable .pharm-nom input{ font-size:26px; font-weight:800; }
-    #pharmacieTable .pharm-addr textarea{ min-height:90px; line-height:1.4; }
-    #pharmacieTable .pharm-dect input{ font-size:26px; font-weight:800; text-align:center; letter-spacing:1px; }
-    #pharmacieTable { box-shadow: 0 0 10px rgba(0,0,0,.25); }
-    #pharmacieTable tr:nth-child(even){ background: rgba(255,255,255,.05); }
-
-    /* Chat mini */
-    .chat-mini { margin-top:12px; }
-    .chat-mini .section-header{ margin-bottom:6px; }
-    .chat-editor{
-      display:grid; grid-template-columns: 160px 1fr auto; gap:8px; align-items:center; margin-bottom:8px;
+    .chat-editor textarea { min-height: 54px; resize: vertical; }
+    .chat-editor button {
+      background: #2563eb; color: #fff; border: none;
+      padding: 12px 24px; border-radius: 10px; font-size: 20px; font-weight: 700;
+      cursor: pointer; transition: all 0.2s ease;
     }
-    .chat-editor input, .chat-editor textarea{
-      font-size:25px; padding:10px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.2);
-      background: rgba(255,255,255,.05); color:#f1f5f9;
-    }
-    .chat-editor textarea{ min-height:54px; resize:vertical; }
-    .chat-editor button{
-      background:#2563eb; color:#fff; border:none; padding:12px 24px; border-radius:10px;
-      font-size:20px; font-weight:800; cursor:pointer; transition:.2s;
-    }
-    .chat-editor button:hover{ background:#1e40af; transform: scale(1.05); }
-
-    .chat-list{
-      display:flex; flex-direction: column-reverse; max-height:520px; overflow:auto; gap:6px;
+    .chat-editor button:hover { background: #1e40af; transform: scale(1.05); }
+    .chat-list {
+      display:flex; flex-direction: column-reverse;
+      max-height: 520px; overflow:auto; gap:6px;
       border:1px solid rgba(255,255,255,.10); border-radius:10px; padding:8px; background: rgba(255,255,255,.03);
     }
     .chat-item{
@@ -153,31 +127,109 @@
       background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
       border-radius:10px; padding:10px 12px;
     }
-    .chat-meta{ font-size:18px; color:#cbd5e1; margin-bottom:4px }
-    .chat-text{ white-space: pre-wrap; font-size:28px; line-height:1.45; color:#fff }
+    .chat-meta{ font-size:20px; color:#cbd5e1; margin-bottom:4px }
+    .chat-text{ white-space: pre-wrap; font-size:35px; line-height:1.5; color:#fff }
     .chat-del{
-      background:#dc2626; color:#fff; font-weight:800; border:none; width:32px; height:32px; border-radius:50%;
-      display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px; transition:.2s;
+      background:#dc2626; color:#fff; font-weight:700; border:none; width:32px; height:32px;
+      border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px;
+      transition: transform .2s ease, background .2s ease;
     }
     .chat-del:hover{ background:#b91c1c; transform: scale(1.1); }
 
-    /* Datalist style (inputs) */
-    input[list]{
-      background: rgba(255,255,255,0.08); color:#f1f5f9; font-size: 24px; font-weight:700;
-      border:1px solid rgba(255,255,255,.15); border-radius:6px; padding:10px 12px; width:100%;
+    /* === Titres de section === */
+    .section-header,
+    h2.section-header,
+    h3.section-header {
+      font-size: 25px; font-weight: 800; text-transform: uppercase; color: #ffffff;
+      letter-spacing: 1px; margin-bottom: 10px; text-align: center;
     }
-    input[list]:focus{ outline:2px solid #60a5fa; }
+    .section-header::after {
+      content: ""; display: block; width: 60%; height: 2px;
+      background: linear-gradient(to right, #2563eb, #38bdf8); margin: 6px auto 0; border-radius: 2px;
+    }
+
+    /* ===== INFOS FIXES (RAPPELS) — Overrides forts ===== */
+    #infosFixesBlock #infosFixesTitle{
+      font-size: 30px !important; font-weight: 900 !important; color: #60a5fa !important;
+      text-transform: uppercase !important; text-align: center !important; margin-bottom: 12px !important;
+    }
+    #infosFixesBlock #infosFixesTable{
+      width: 100% !important; border-collapse: collapse !important; margin-top: 10px !important;
+      background: rgba(255,255,255,0.03) !important; border-radius: 10px !important; overflow: hidden !important;
+    }
+    #infosFixesBlock #infosFixesTable thead th{
+      font-size: 28px !important; font-weight: 800 !important; color: #e0f2fe !important;
+      background: rgba(255,255,255,0.08) !important; padding: 14px 10px !important; text-align: center !important;
+    }
+    #infosFixesBlock #infosFixesTable tbody td{
+      font-size: 22px !important; font-weight: 700 !important; color: #ffffff !important;
+      padding: 12px 18px !important; border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+    }
+    #infosFixesBlock #infosFixesTable tbody td.td-left{
+      width: 280px !important; text-align: left !important; font-weight: 800 !important;
+    }
+    #infosFixesBlock #infosFixesTable .tag{
+      font-size: 20px !important; font-weight: 900 !important; padding: 8px 14px !important;
+      background: #004aad !important; color: #fff !important; border-radius: 10px !important;
+      display: inline-block !important; min-width: 110px !important; text-align: center !important; margin-right: 8px !important;
+    }
+    #infosFixesBlock #infosFixesTable .title-row th{
+      background: rgba(0,0,0,0.2) !important; color: #93c5fd !important; font-size: 26px !important; font-weight: 900 !important;
+      text-align: left !important; padding: 10px 14px !important;
+    }
+    #infosFixesBlock #infosFixesTable .tag.j { background:#2563eb !important; color:#fff !important; }
+    #infosFixesBlock #infosFixesTable .tag.n { background:#dc2626 !important; color:#fff !important; }
+
+    /* === Médecins (entrées plus grandes) === */
+    #medecinTable input[list="medecinsList"]{ font-size: 30px; font-weight: 700; padding: 10px 12px; height: 42px; }
+    #medecinTable .service-badge{ display:flex; align-items:center; justify-content:center; font-size:25px; font-weight:700; padding:10px 14px; min-width:180px; min-height:56px; }
+    #medecinTable td input[type="text"]{ font-size:30px; font-weight:700; height:40px; }
+
+    /* === SMUR === */
+    #smurPrimaireTable td input, #smurSecondaireTable td input{ font-size:30px; font-weight:700; height:42px; }
+
+    /* === Régulateurs : DECT agrandi === */
+    #regulateurJourTable .rj-dect, #regulateurNuitTable .rn-dect{ font-size:30px; font-weight:700; height:42px; }
+    #regulateurNuitTable .reg-badge{ color:#ef4444; font-weight:800; }
+
+    /* === Ambulance de Garde === */
+    #ambulanceGardeTable td input[type="text"], #ambulanceGardeTable td input[list]{ font-size: 30px; font-weight:700; height:44px; text-align:center; }
+    #ambulanceGardeTable .vehicule-badge{ font-size: 34px !important; font-weight: 800 !important; letter-spacing:1px; color:#ef4444; }
+
+    /* === Champs à suggestions (datalist) === */
+    input[list]{
+      background: rgba(255,255,255,0.08); color: #f1f5f9; font-size: 26px; font-weight: 700;
+      border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 10px 12px; width: 100%;
+    }
+    input[list]:focus{ outline: 2px solid #60a5fa; }
     input[list]::placeholder{ color: rgba(255,255,255,0.45); }
 
-    /* Champs DECT (masque 2-2…) */
-    .dect-field{ width: 260px; text-align:center; font-weight:800 }
+    /* Champs DECT centrés et masqués (tirets /2 chiffres) */
+    input.dect-field{ width: 300px; text-align:center; }
 
+    /* Thème sombre pour menus natifs quand supporté */
     :root{ color-scheme: dark; }
+
+    /* ===================== PHARMACIES DE GARDE (grand) ===================== */
+    #pharmacieTable {
+      background: rgba(0, 60, 150, 0.25); border-radius: 12px; padding: 16px; width: 100%;
+      margin-top: 16px; font-size: 22px; box-shadow: 0 0 10px rgba(0,0,0,0.25);
+    }
+    #pharmacieTable th { background: rgba(0, 80, 180, 0.4); color: #ffffff; font-size: 24px; padding: 12px 8px; text-align: left; }
+    #pharmacieTable td { padding: 10px 8px; vertical-align: middle; }
+    #pharmacieTable input[type="text"], #pharmacieTable textarea {
+      font-size: 22px; font-weight: 600; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
+      color: #f1f5f9; background: rgba(255,255,255,0.07); width: 100%; resize: vertical;
+    }
+    #pharmacieTable .pharm-nom input { font-size: 26px; font-weight: 700; }
+    #pharmacieTable .pharm-addr textarea { min-height: 90px; font-size: 22px; line-height: 1.4; }
+    #pharmacieTable .pharm-dect input { font-size: 26px; font-weight: 700; text-align: center; letter-spacing: 1px; }
+    #pharmacieTable tr:nth-child(even) { background: rgba(255,255,255,0.05); }
   </style>
 </head>
 <body>
 <script>
-  // Applique le zoom dès l’ouverture + à la restitution du cache
+  // Applique le zoom au chargement (évite le flash)
   (function () {
     const DEFAULT_ZOOM = 0.80;
     const saved = parseFloat(localStorage.getItem('uiZoom') || DEFAULT_ZOOM);
@@ -276,7 +328,7 @@
       </div>
     </div>
 
-    <!-- COLONNE DROITE -->
+    <!-- COLONNE DROITE (haut) : SMUR + Régulateurs -->
     <div>
       <div class="right-grid">
         <div class="board">
@@ -309,44 +361,41 @@
           <div class="actions"><button onclick="addRow(this)">Ajouter une ligne</button></div>
         </div>
 
-        <!-- Régulateurs JOUR -->
         <div class="board">
           <div class="section-header">Régulateur — Jour</div>
           <table id="regulateurJourTable">
-            <thead><tr><th style="text-align:left;width:88px"></th><th>Nom</th><th>DECT</th></tr></thead>
+            <thead><tr><th style="text-align:left;width:72px"></th><th>Nom</th><th>DECT</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
 
-        <!-- Régulateurs NUIT -->
         <div class="board">
           <div class="section-header">Régulateur — Nuit</div>
           <table id="regulateurNuitTable">
-            <thead><tr><th style="text-align:left;width:88px"></th><th>Nom</th><th>DECT</th></tr></thead>
+            <thead><tr><th style="text-align:left;width:72px"></th><th>Nom</th><th>DECT</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
       </div>
 
-      <!-- 🚑 Ambulance de Garde — JOUR & NUIT, pleine largeur -->
+      <!-- 🚑 Ambulance de Garde — pleine largeur sous régulateurs -->
       <div class="board full-width" style="margin-top:12px">
-        <div class="section-header">Ambulance de Garde — JOUR</div>
-        <table id="ambulanceGardeJourTable">
-          <thead><tr><th style="text-align:left;width:110px">Véhicule</th><th>Nom</th><th>DECT</th></tr></thead>
+        <div class="section-header">Ambulance de Garde</div>
+        <table id="ambulanceGardeTable">
+          <thead>
+            <tr>
+              <th style="text-align:left;width:72px"></th>
+              <th>Nom</th>
+              <th>DECT</th>
+            </tr>
+          </thead>
           <tbody></tbody>
         </table>
       </div>
 
-      <div class="board full-width" style="margin-top:12px">
-        <div class="section-header" style="color:#fecaca">Ambulance de Garde — NUIT</div>
-        <table id="ambulanceGardeNuitTable">
-          <thead><tr><th style="text-align:left;width:110px">Véhicule</th><th>Nom</th><th>DECT</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
-      <!-- Bas : 4 tableaux -->
+      <!-- Bas de colonne droite : 4 tableaux restants -->
       <div class="lower-grid">
+        <!-- Médecin Régulateur Libéral -->
         <div class="board">
           <div class="section-header">Médecin Régulateur Libéral</div>
           <table id="regulLiberalTable">
@@ -367,6 +416,7 @@
           <div class="actions"><button onclick="addRowTo('regulLiberalTable')">Ajouter un médecin libéral</button></div>
         </div>
 
+        <!-- Administrateur de Garde (datalist) -->
         <div class="board">
           <div class="section-header">Administrateur de Garde</div>
           <table id="administrateurTable">
@@ -382,6 +432,7 @@
           <div class="actions"><button onclick="addRowTo('administrateurTable')">Ajouter une ligne</button></div>
         </div>
 
+        <!-- Ambulance de Sortie -->
         <div class="board">
           <div class="section-header">Ambulance de Sortie</div>
           <table id="ambulanceSortieTable">
@@ -397,6 +448,7 @@
           <div class="actions"><button onclick="addRowTo('ambulanceSortieTable')">Ajouter une ligne</button></div>
         </div>
 
+        <!-- Ambulance de GHT -->
         <div class="board">
           <div class="section-header">Ambulance de GHT</div>
           <table id="ambulanceGHTTable">
@@ -444,7 +496,7 @@
   <datalist id="medecinsList">
     <!-- Réa -->
     <option value="Dr Vaz"><option value="Dr Hamizi"><option value="Dr Kinda"><option value="Dr SOILIHI"><option value="Dr ANGHEL"><option value="Dr RAHARIMANANA">
-    <option value="Dr Voellmy"><option value="Dr Njatomalala"><option value="Dr Chabbi">
+    <option value="Dr Voellmy"><option value="Dr Njatomalala"><option value="Dr Chabbi"><option value="Dr NJATOMALALA">
     <option value="Dr Mortreux"><option value="Dr Chedjieu"><option value="Dr Rey"><option value="Dr PREVEDELLO"><option value="Dr BOURREAU">
     <!-- Cardio -->
     <option value="Dr Ricoulleau"><option value="Dr Heurtebise"><option value="Dr Laporal">
@@ -531,7 +583,7 @@
     const REGULATEURS_JOUR = ["R1","R2"];
     const REGULATEURS_NUIT = ["N1","N2"];
 
-    // Médecins autorisés pour régulation
+    // Liste des médecins autorisés pour les postes de régulation
     const REG_MEDECINS = [
       "Dr Agbessi","Dr Arar","Dr Belghalem","Dr Campet","Dr Carlos","Dr Chereau",
       "Dr Chomono","Dr Cochonneau","Dr Dechery","Dr Dorion","Dr Gonzales de Linares",
@@ -545,7 +597,7 @@
       dl.innerHTML = REG_MEDECINS.map(n => `<option value="${n}">`).join('');
     }
 
-    // Helpers DOM
+    // Helpers
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => Array.from(document.querySelectorAll(sel));
     const dayKeyEl = $('#dayKey'), syncDot=$('#syncDot'), syncText=$('#syncText'), lastSaved=$('#lastSaved');
@@ -555,21 +607,23 @@
     const dataRef = () => ref(db, `tableauGarde/${currentKey}`);
     const setSaving = (b)=>{ if(b){syncDot.className='dot saving';syncText.textContent='Sauvegarde…';}else{syncDot.className='dot online';syncText.textContent='Synchronisé';lastSaved.textContent=`• ${new Date().toLocaleTimeString('fr-FR')}`;} };
 
-    // Nom -> service
+    // Nom -> service (badge auto)
     const serviceMap = {
       "Dr Vaz":"Réanimation","Dr Hamizi":"Réanimation","Dr Kinda":"Réanimation","Dr Voellmy":"Réanimation","Dr NJATOMALALA":"Réanimation","Dr SOILIHI":"Réanimation","Dr RAHARIMANANA":"Réanimation",
-      "Dr Njatomalala":"Réanimation","Dr Chabbi":"Réanimation","Dr Mortreux":"Réanimation","Dr Chedjieu":"Réanimation","Dr Rey":"Réanimation","Dr ANGHEL":"Réanimation","Dr PREVEDELLO":"Réanimation","Dr BOURREAU":"Réanimation",
+      "Dr Njatomalala":"Réanimation","Dr Chabbi":"Réanimation","Dr Mortreux":"Réanimation","Dr Chedjieu":"Réanimation","Dr Rey":"Réanimation","Dr ANGHEL":"Réanimation",
       "Dr Ricoulleau":"Cardio","Dr Heurtebise":"Cardio","Dr Laporal":"Cardio","Dr Jnifene":"Cardio","Dr Akiel":"Cardio","Dr Guenal":"Cardio",
-      "Dr Didot":"Cardio","Dr Brathier":"Cardio","Dr Dechery":"Cardio","Dr Tabat":"Cardio","Dr Lounthone":"Cardio","Dr El Idrisse":"Cardio","Dr Lemrini":"Cardio","Dr Seaux":"Cardio","Dr Athmani":"Cardio","Dr Chesnoy":"Cardio",
+      "Dr Didot":"Cardio","Dr Brathier":"Cardio","Dr Dechery":"Cardio","Dr Tabat":"Cardio","Dr Lounthone":"Cardio","Dr El Idrisse":"Cardio",
+      "Dr Lemrini":"Cardio","Dr Seaux":"Cardio","Dr Athmani":"Cardio","Dr Chesnoy":"Cardio",
       "Dr Maiga":"Neuro-vasc","Dr Phan":"Neuro-vasc","Dr Chabbine":"Neuro-vasc","Dr Profiroiu":"Neuro-vasc","Dr Fanorena":"Neuro-vasc",
       "Dr Dai Tometin":"Pédiatrie","Dr Ayaz":"Pédiatrie","Dr Hefteh":"Pédiatrie","Dr Benzid":"Pédiatrie","Dr Gaisne":"Pédiatrie","Dr Gatti":"Pédiatrie","Dr OUCHTATI":"Pédiatrie",
-      "Dr Ikomba":"Pédiatrie","Dr Tresor":"Pédiatrie","Dr Benhocine":"Pédiatrie","Dr Toronga":"Pédiatrie","Dr Mvogo":"Pédiatrie","Dr Taylor":"Pédiatrie","Dr Chatue":"Pédiatrie","Dr Torona":"Pédiatrie","Dr DAI TOMETIN":"Pédiatrie","Dr BOUHMOUCH":"Pédiatrie",
-      "Dr Bello":"Radiologie","Dr Chawa":"Radiologie","IMADI":"Radiologie","IMADIS":"Radiologie","Dr Gnonwa":"Radiologie","Dr Coatrieux":"Radiologie",
-      "Dr Bouchibane":"Radiologie","Dr Adjimabou":"Radiologie","Dr Soumo":"Radiologie","Dr Didenjou":"Radiologie"
+      "Dr Ikomba":"Pédiatrie","Dr Tresor":"Pédiatrie","Dr Benhocine":"Pédiatrie","Dr Toronga":"Pédiatrie","Dr Mvogo":"Pédiatrie","Dr Taylor":"Pédiatrie",
+      "Dr Chatue":"Pédiatrie","Dr Torona":"Pédiatrie","Dr DAI TOMETIN":"Pédiatrie","Dr BOUHMOUCH":"Pédiatrie",
+      "Dr Bello":"Radiologie","Dr Chawa":"Radiologie","Dr IMADI":"Radiologie","Dr Gnonwa":"Radiologie","Dr Coatrieux":"Radiologie",
+      "Dr Bouchibane":"Radiologie","Dr Adjimabou":"Radiologie","Dr Soumo":"Radiologie","Dr Didenjou":"Radiologie","Dr PREVEDELLO":"Réanimation","Dr BOURREAU":"Réanimation",
     };
     const inferService = (name)=> serviceMap[name?.trim()] || "—";
 
-    // Masque DECT : 76-58 / 06-00-00-00-00
+    // Masque DECT : tiret toutes les 2 chiffres
     function formatDect(value){
       const digits = (value||'').replace(/\D+/g,'');
       return digits.replace(/(\d{2})(?=\d)/g, '$1-');
@@ -577,12 +631,11 @@
     function attachDectMask(input){
       if (!input) return;
       const handler = ()=>{
-        const before = input.value;
         const pos = input.selectionStart;
-        input.value = formatDect(before);
+        const before = input.value;
+        input.value = formatDect(input.value);
         const delta = input.value.length - before.length;
-        const newPos = (pos||0) + (delta > 0 ? 1 : delta < 0 ? -1 : 0);
-        input.selectionStart = input.selectionEnd = Math.max(0, Math.min(input.value.length, newPos));
+        input.selectionStart = input.selectionEnd = Math.max(0, (pos||0)+delta);
       };
       input.addEventListener('input', handler);
     }
@@ -628,23 +681,15 @@
           dect: tr.querySelector('.mrl-dect')?.value || ''
         })),
         administrateur: readTableRows('administrateurTable', (tr) => ({
-          nom: tr.querySelector('.admin-nom')?.value || '',
+          nom:  tr.querySelector('.admin-nom')?.value || '',
           dect: tr.querySelector('.admin-dect')?.value || ''
         })),
-        ambulanceGardeJour: (() => {
-          const tbody = document.querySelector('#ambulanceGardeJourTable tbody');
+        ambulanceGarde: (() => {
+          const tbody = document.querySelector('#ambulanceGardeTable tbody');
           return Array.from(tbody.rows).map(tr => ({
             vehicule: tr.cells[0].textContent.trim(),
-            nom:      tr.querySelector('.agj-nom')?.value || '',
-            dect:     tr.querySelector('.agj-dect')?.value || ''
-          }));
-        })(),
-        ambulanceGardeNuit: (() => {
-          const tbody = document.querySelector('#ambulanceGardeNuitTable tbody');
-          return Array.from(tbody.rows).map(tr => ({
-            vehicule: tr.cells[0].textContent.trim(),
-            nom:      tr.querySelector('.agn-nom')?.value || '',
-            dect:     tr.querySelector('.agn-dect')?.value || ''
+            nom:      tr.querySelector('.ag-nom')?.value || '',
+            dect:     tr.querySelector('.ag-dect')?.value || ''
           }));
         })(),
         ambulanceSortie: readTableRows('ambulanceSortieTable', (tr) => ({
@@ -664,8 +709,7 @@
     }
 
     /* ====== RENDER/HYDRATE ====== */
-    const VEHICULES_GARDE_JOUR = ["B1","B2","B3","VZ","St Amd","Nord","Est"];
-const VEHICULES_GARDE_NUIT = ["B1","B2","B3","VZ","St Amd"]; // ❌ sans "Nord" ni "Est"
+    const VEHICULES_GARDE = ["B1","B2","B3","VZ","St Amd","Nord","Est"];
 
     function renderRows(tbody, rows, renderCellHtmls){
       tbody.innerHTML = '';
@@ -698,7 +742,7 @@ const VEHICULES_GARDE_NUIT = ["B1","B2","B3","VZ","St Amd"]; // ❌ sans "Nord" 
         <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
       `);
 
-      // Régulateurs (R1/R2/N1/N2) avec liste REG_MEDECINS
+      // Régulateurs (jour/nuit) — NOM via datalist restreinte
       renderRows(document.querySelector('#regulateurJourTable tbody'),
         REGULATEURS_JOUR.map(slot => {
           const found = (data.regulateurJour || []).find(r => (r.slot||'') === slot) || {};
@@ -722,31 +766,34 @@ const VEHICULES_GARDE_NUIT = ["B1","B2","B3","VZ","St Amd"]; // ❌ sans "Nord" 
         `
       );
 
-      // JOUR
-renderRows(document.querySelector('#ambulanceGardeJourTable tbody'),
-  VEHICULES_GARDE_JOUR.map(v => {
-    const found = (data.ambulanceGardeJour || []).find(r => (r.vehicule||'') === v) || {};
-    return { vehicule: v, nom: found.nom || '', dect: found.dect || '' };
-  }),
-  (row) => `
-    <td class="vehicule-badge">${row.vehicule}</td>
-    <td><input class="agj-nom" list="ambuList" value="${row.nom||''}" placeholder="Choisir / taper une ambulance…"></td>
-    <td><input class="agj-dect dect-field" type="text" placeholder="DECT" value="${row.dect||''}" /></td>
-  `
-);
+      // Médecin Régulateur Libéral (2 lignes par défaut si vide)
+      const mrlRows = (data.regulLiberal && data.regulLiberal.length) ? data.regulLiberal : [{},{}];
+      renderRows($('#regulLiberalTable tbody'), mrlRows, (row)=>`
+        <td><input class="mrl-nom" list="regMedList" value="${row.nom||''}" placeholder="Tapez un régulateur…"/></td>
+        <td><input class="mrl-dect dect-field" type="text" placeholder="DECT" value="${row.dect||''}"/></td>
+        <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+      `);
 
-// NUIT (⚠️ utilise VEHICULES_GARDE_NUIT)
-renderRows(document.querySelector('#ambulanceGardeNuitTable tbody'),
-  VEHICULES_GARDE_NUIT.map(v => {
-    const found = (data.ambulanceGardeNuit || []).find(r => (r.vehicule||'') === v) || {};
-    return { vehicule: v, nom: found.nom || '', dect: found.dect || '' };
-  }),
-  (row) => `
-    <td class="vehicule-badge">${row.vehicule}</td>
-    <td><input class="agn-nom" list="ambuList" value="${row.nom||''}" placeholder="Choisir / taper une ambulance…"></td>
-    <td><input class="agn-dect dect-field" type="text" placeholder="DECT" value="${row.dect||''}" /></td>
-  `
-);
+      // Administrateur de Garde — **fix : hydrate avec données et 1 ligne par défaut**
+      const adminRows = (data.administrateur && data.administrateur.length) ? data.administrateur : [{}];
+      renderRows($('#administrateurTable tbody'), adminRows, (row)=>`
+        <td><input class="admin-nom" list="adminsList" value="${row.nom||''}" placeholder="Commencez à taper…"/></td>
+        <td><input class="admin-dect dect-field" type="text" value="${row.dect||''}" placeholder="DECT"/></td>
+        <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+      `);
+
+      // Ambulance de GARDE — lignes fixes
+      renderRows(document.querySelector('#ambulanceGardeTable tbody'),
+        VEHICULES_GARDE.map(v => {
+          const found = (data.ambulanceGarde || []).find(r => (r.vehicule||'') === v) || {};
+          return { vehicule: v, nom: found.nom || '', dect: found.dect || '' };
+        }),
+        (row) => `
+          <td class="vehicule-badge">${row.vehicule}</td>
+          <td><input class="ag-nom" list="ambuList" value="${row.nom||''}" placeholder="Choisir / taper une ambulance…"></td>
+          <td><input class="ag-dect dect-field" type="text" placeholder="DECT" value="${row.dect||''}" /></td>
+        `
+      );
 
       // Ambulances dynamiques
       renderRows($('#ambulanceSortieTable tbody'), data.ambulanceSortie || [], (row)=>`
@@ -768,20 +815,20 @@ renderRows(document.querySelector('#ambulanceGardeNuitTable tbody'),
         <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
       `);
 
-      // Attacher masque DECT
-      $$('.dect-field').forEach(attachDectMask);
+      // Masque DECT sur tous les champs concernés
+      $$('.dect-field, .rj-dect, .rn-dect, .mrl-dect, .admin-dect, .ag-dect').forEach(attachDectMask);
     }
 
     /* ====== SAVE / LOAD ====== */
     let debounceTimer = null;
-    const DEBOUNCE_MS = 2000;   // délai plus long
+    const DEBOUNCE_MS = 2000;   // délai plus long (limite les bugs)
     let skipNextUpdate = false;
 
     function scheduleSave(){ clearTimeout(debounceTimer); debounceTimer = setTimeout(saveAll, DEBOUNCE_MS); setSaving(true); }
     async function saveAll(){
       const data = serializeAll();
       skipNextUpdate = true;
-      await update(dataRef(), data);  // MERGE (préserve le chat)
+      await update(dataRef(), data);  // MERGE (n’écrase pas le chat)
       setSaving(false);
     }
     function loadAndListen(){
@@ -795,17 +842,32 @@ renderRows(document.querySelector('#ambulanceGardeNuitTable tbody'),
 
     /* ====== UI WIRING ====== */
     function wireAutoSave(){
-      // Médecins : badge service live
+      // Médecins : badge service en live
       $$('#medecinTable tbody input[list="medecinsList"]').forEach(inp=>{
         const updateSvc = () => {
-          inp.closest('tr').cells[1].querySelector('.service-badge').textContent = inferService(inp.value);
+          const badge = inp.closest('tr')?.cells?.[1]?.querySelector('.service-badge');
+          if (badge) badge.textContent = inferService(inp.value);
           scheduleSave();
         };
-        inp.oninput = updateSvc; inp.onchange = updateSvc;
+        inp.oninput = updateSvc;
+        inp.onchange = updateSvc;
       });
-      // Enregistrement différé partout
-      $$( 'input, textarea' ).forEach(el=>{ el.oninput = scheduleSave; el.onchange = scheduleSave; });
-      // Re-attache le masque DECT
+
+      // Enregistrement différé partout (inclut Administrateur de garde)
+      $$('#medecinTable input, #medecinTable textarea, \
+          #smurPrimaireTable input, #smurSecondaireTable input, \
+          #regulateurJourTable input, #regulateurNuitTable input, \
+          #regulLiberalTable input, \
+          #administrateurTable input, \
+          #ambulanceGardeTable input, \
+          #ambulanceSortieTable input, #ambulanceGHTTable input, \
+          #pharmacieTable input, #pharmacieTable textarea'
+      ).forEach(el=>{
+        el.oninput  = scheduleSave;
+        el.onchange = scheduleSave;
+      });
+
+      // Re-masque DECT si de nouvelles lignes
       $$('.dect-field').forEach(attachDectMask);
     }
 
@@ -819,7 +881,7 @@ renderRows(document.querySelector('#ambulanceGardeNuitTable tbody'),
     document.getElementById('newDayBtn').addEventListener('click', ()=>{
       currentKey = todayKey(); localStorage.setItem('gardeDayKey', currentKey); dayKeyEl.textContent = currentKey;
       hydrateAll({}); saveAll(); loadAndListen();
-      wireChatUI(); loadChat();
+      wireChatUI(); loadChat(); // relancer le chat pour la nouvelle journée
     });
     document.getElementById('clearDayBtn').addEventListener('click', async ()=>{
       if (confirm('Effacer toutes les données de la journée ?')){
@@ -953,7 +1015,7 @@ renderRows(document.querySelector('#ambulanceGardeNuitTable tbody'),
       new Date().toLocaleDateString('fr-FR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 
     function firstLoad(){
-      buildRegMedDatalist();
+      buildRegMedDatalist(); // remplir la datalist des régulateurs
       onValue(dataRef(), (snap)=>{
         hydrateAll(snap.val() || {});
         wireAutoSave();
@@ -967,7 +1029,7 @@ renderRows(document.querySelector('#ambulanceGardeNuitTable tbody'),
   </script>
 
   <footer class="footer" style="text-align:center;color:#9ca3af;font-size:14px;padding:12px 0;border-top:1px solid rgba(255,255,255,.1);margin-top:16px;background:rgba(255,255,255,.02);">
-    © 2025 Tableau de garde V5 - Matéo CALLEJA — Tous droits réservés
+    © 2025 Tableau de garde V4 - Matéo CALLEJA — Tous droits réservés
   </footer>
 </body>
 </html>
