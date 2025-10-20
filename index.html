@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Zoom par défaut (évite “trop gros” au chargement) -->
+  <meta name="viewport" content="width=device-width, initial-scale=0.8, maximum-scale=1.0, user-scalable=no">
+  <title>Tableau de Garde - Hôpital (Firebase)</title>
+
+  <!-- Zoom CSS (Chrome/Edge/Safari) + fallback Firefox -->
+  <style>
+    :root { --ui-zoom: 0.80; }
+    html { zoom: var(--ui-zoom); }
+    @-moz-document url-prefix() {
+      body { transform: scale(var(--ui-zoom)); transform-origin: 0 0; width: calc(100% / var(--ui-zoom)); }
+    }
+  </style>
+
+  <style>
+    :root{
+      --bg:#0f172a; --card:#0b1226aa; --muted:#94a3b8; --text:#e2e8f0;
+      --accent:#2563eb; --accent2:#7c3aed; --ok:#10b981; --warn:#f59e0b; --danger:#ef4444;
+      --shadow: 0 8px 30px rgba(0,0,0,.35); --radius:14px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; color:var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background: radial-gradient(1200px 900px at 20% -10%, #1e293b 0%, #0f172a 60%);
+    }
+    .header{
+      padding:20px 12px; text-align:center;
+      background: linear-gradient(135deg, rgba(37,99,235,.35), rgba(124,58,237,.30));
+      border-bottom:1px solid rgba(255,255,255,.08); backdrop-filter: blur(6px);
+    }
+    .header h1{margin:0; font-size:26px}
+    #date { font-size: 3.2rem; font-weight: 600; color: #f1f5f9; letter-spacing:.5px; margin-top: 6px; text-shadow:0 1px 2px rgba(0,0,0,.4); }
+
+    .sync-bar{display:flex; gap:10px; align-items:center; justify-content:center; font-size:13px; padding:8px 10px; opacity:.9}
+    .dot{width:9px;height:9px;border-radius:50%}
+    .dot.idle{background:#64748b}.dot.saving{background:var(--warn);animation:pulse 1.1s infinite}.dot.online{background:var(--ok)}
+    @keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.22)}100%{transform:scale(1)}}
+    .toolbar{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; padding:10px}
+    button{
+      border:1px solid rgba(255,255,255,.12);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      color:var(--text); padding:8px 12px; border-radius:10px; cursor:pointer;
+      backdrop-filter: blur(6px); transition:.2s;
+    }
+    button:hover{transform: translateY(-1px); border-color: rgba(255,255,255,.25)}
+    button.secondary{border-color: rgba(37,99,235,.4)}
+    button.danger{border-color: rgba(239,68,68,.4)}
+
+    /* Grille principale */
+    .container{display:grid; grid-template-columns: 1.1fr 1.9fr; gap:16px; padding:14px}
+    @media (max-width:1100px){ .container{grid-template-columns:1fr} }
+
+    .card,.board{background:var(--card); border:1px solid rgba(255,255,255,.10); border-radius:var(--radius); box-shadow:var(--shadow); padding:12px}
+    .section-header{
+      font-weight:800; letter-spacing:.3px; margin:2px 0 8px; text-align:center; color:#fff; font-size:24px;
+      text-transform: uppercase; position:relative;
+    }
+    .section-header::after{
+      content:""; position:relative; display:block; width:60%; height:2px; margin:6px auto 0; border-radius:2px;
+      background: linear-gradient(to right, #2563eb, #38bdf8);
+    }
+
+    table{width:100%; border-collapse:collapse; overflow:hidden; border-radius:12px}
+    th,td{padding:10px 10px; text-align:center}
+    thead th{
+      background: linear-gradient(180deg, rgba(37,99,235,.30), rgba(124,58,237,.18));
+      border-bottom:1px solid rgba(255,255,255,.12); font-size:14px
+    }
+    tbody td{border-top:1px solid rgba(255,255,255,.06)}
+    input, select, textarea{
+      width:100%; padding:10px 12px; border-radius:10px; outline:none;
+      background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); color:var(--text);
+    }
+    input::placeholder, textarea::placeholder{color:#94a3b866}
+    .actions{display:flex; gap:6px; justify-content:center}
+
+    .tag{ font-size:1.1rem; padding:4px 10px; color:#fff; background:#1e40af; border:1px solid rgba(255,255,255,.18); border-radius:10px; display:inline-block; margin-right:6px; }
+    .tag.j{ background:#2563eb; } .tag.n{ background:#dc2626; }
+    .td-left{ text-align:left; color:#cbd5e1; font-weight:600; }
+    .tight table tbody td{padding-top:6px; padding-bottom:6px}
+
+    /* Layout colonne droite */
+    .right-grid { display:grid; grid-template-columns: repeat(2, minmax(340px, 1fr)); gap:12px; align-items:start; }
+    .lower-grid { display:grid; grid-template-columns: repeat(2, minmax(340px, 1fr)); gap:12px; align-items:start; margin-top:12px; }
+    @media (max-width: 1200px) { .right-grid, .lower-grid { grid-template-columns: 1fr; } }
+    .full-width{ grid-column: 1 / -1; }
+
+    /* Badges véhicules / régulateurs */
+    .vehicule-badge{ font-weight:800; color:#ef4444; letter-spacing:.5px; text-align:left; padding-left:8px; font-size:30px }
+    .reg-badge{ font-weight:800; color:#22c55e; letter-spacing:.5px; text-align:left; padding-left:8px; font-size:30px }
+    #regulateurNuitTable .reg-badge{ color:#ef4444; }
+
+    /* Médecins (entrées grandes) */
+    #medecinTable input[list="medecinsList"]{ font-size: 26px; font-weight: 700; padding: 10px 12px; }
+    #medecinTable .service-badge{
+      display:flex; align-items:center; justify-content:center;
+      font-size:24px; font-weight:800; padding:10px 14px; min-width:180px; min-height:56px;
+      background: rgba(99,102,241,.22); border:1px solid rgba(99,102,241,.45); color:#fff; border-radius:10px; text-align:center;
+    }
+    #medecinTable td input[type="text"]{ font-size:26px; font-weight:700; height:40px; }
+
+    /* SMUR */
+    #smurPrimaireTable td input, #smurSecondaireTable td input{ font-size:26px; font-weight:700; height:42px; }
+
+    /* Régulateurs : DECT large */
+    #regulateurJourTable .rj-dect, #regulateurNuitTable .rn-dect{ font-size:26px; font-weight:700; height:42px; text-align:center }
+
+    /* Ambulance de Garde (champs) */
+    #ambulanceGardeJourTable td input, #ambulanceGardeNuitTable td input{ font-size:26px; font-weight:700; height:42px; text-align:center }
+    #ambulanceGardeJourTable .vehicule-badge, #ambulanceGardeNuitTable .vehicule-badge{ font-size:32px; }
+
+    /* Pharmacies — lisibilité ++ */
+    #pharmacieTable { background: rgba(0,60,150,.25); border-radius:12px; padding:16px; width:100%; margin-top:16px; font-size:22px; }
+    #pharmacieTable th { background: rgba(0,80,180,.4); color:#fff; font-size:24px; padding:12px 8px; text-align:left; }
+    #pharmacieTable td { padding:10px 8px; vertical-align:middle; }
+    #pharmacieTable input[type="text"], #pharmacieTable textarea{
+      font-size:22px; font-weight:600; padding:10px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.2);
+      color:#f1f5f9; background: rgba(255,255,255,.07); width:100%;
+    }
+    #pharmacieTable .pharm-nom input{ font-size:26px; font-weight:800; }
+    #pharmacieTable .pharm-addr textarea{ min-height:90px; line-height:1.4; }
+    #pharmacieTable .pharm-dect input{ font-size:26px; font-weight:800; text-align:center; letter-spacing:1px; }
+    #pharmacieTable { box-shadow: 0 0 10px rgba(0,0,0,.25); }
+    #pharmacieTable tr:nth-child(even){ background: rgba(255,255,255,.05); }
+
+    /* Chat mini */
+    .chat-mini { margin-top:12px; }
+    .chat-mini .section-header{ margin-bottom:6px; }
+    .chat-editor{
+      display:grid; grid-template-columns: 160px 1fr auto; gap:8px; align-items:center; margin-bottom:8px;
+    }
+    .chat-editor input, .chat-editor textarea{
+      font-size:25px; padding:10px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.2);
+      background: rgba(255,255,255,.05); color:#f1f5f9;
+    }
+    .chat-editor textarea{ min-height:54px; resize:vertical; }
+    .chat-editor button{
+      background:#2563eb; color:#fff; border:none; padding:12px 24px; border-radius:10px;
+      font-size:20px; font-weight:800; cursor:pointer; transition:.2s;
+    }
+    .chat-editor button:hover{ background:#1e40af; transform: scale(1.05); }
+
+    .chat-list{
+      display:flex; flex-direction: column-reverse; max-height:520px; overflow:auto; gap:6px;
+      border:1px solid rgba(255,255,255,.10); border-radius:10px; padding:8px; background: rgba(255,255,255,.03);
+    }
+    .chat-item{
+      display:grid; grid-template-columns: 1fr auto; gap:8px; align-items:start;
+      background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+      border-radius:10px; padding:10px 12px;
+    }
+    .chat-meta{ font-size:18px; color:#cbd5e1; margin-bottom:4px }
+    .chat-text{ white-space: pre-wrap; font-size:28px; line-height:1.45; color:#fff }
+    .chat-del{
+      background:#dc2626; color:#fff; font-weight:800; border:none; width:32px; height:32px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px; transition:.2s;
+    }
+    .chat-del:hover{ background:#b91c1c; transform: scale(1.1); }
+
+    /* Datalist style (inputs) */
+    input[list]{
+      background: rgba(255,255,255,0.08); color:#f1f5f9; font-size: 24px; font-weight:700;
+      border:1px solid rgba(255,255,255,.15); border-radius:6px; padding:10px 12px; width:100%;
+    }
+    input[list]:focus{ outline:2px solid #60a5fa; }
+    input[list]::placeholder{ color: rgba(255,255,255,0.45); }
+
+    /* Champs DECT (masque 2-2…) */
+    .dect-field{ width: 260px; text-align:center; font-weight:800 }
+
+    :root{ color-scheme: dark; }
+  </style>
+</head>
+<body>
+<script>
+  // Applique le zoom dès l’ouverture + à la restitution du cache
+  (function () {
+    const DEFAULT_ZOOM = 0.80;
+    const saved = parseFloat(localStorage.getItem('uiZoom') || DEFAULT_ZOOM);
+    document.documentElement.style.setProperty('--ui-zoom', saved);
+    window.addEventListener('pageshow', function(){
+      const z = parseFloat(localStorage.getItem('uiZoom') || DEFAULT_ZOOM);
+      document.documentElement.style.setProperty('--ui-zoom', z);
+    });
+  })();
+</script>
+
+  <div class="header">
+    <h1>Tableau de Garde — Hôpital</h1>
+    <div id="date"></div>
+  </div>
+
+  <div class="sync-bar">
+    <span class="dot idle" id="syncDot" title="État sync"></span>
+    <span id="syncText">Prêt</span>
+    <span id="lastSaved" style="opacity:.7"></span>
+    <span style="opacity:.7">| Clé du jour : <strong id="dayKey"></strong></span>
+  </div>
+
+  <div class="toolbar">
+    <button id="forceSaveBtn" class="secondary">💾 Enregistrer maintenant</button>
+    <button id="newDayBtn" class="secondary">📅 Nouvelle journée</button>
+    <button id="clearDayBtn" class="danger">🧹 Vider la journée</button>
+  </div>
+
+  <!-- ======== GRILLE PRINCIPALE ======== -->
+  <div class="container">
+    <!-- COLONNE GAUCHE -->
+    <div class="card tight">
+      <div class="section-header">Médecins</div>
+      <table id="medecinTable">
+        <thead>
+          <tr>
+            <th>Nom (saisie libre + suggestions)</th>
+            <th>Service</th>
+            <th>DECT</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input list="medecinsList" placeholder="Ex. Dr Dupont" /></td>
+            <td><span class="service-badge">—</span></td>
+            <td><input class="dect-field" type="text" placeholder="DECT"></td>
+            <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="actions" style="margin-top:8px">
+        <button onclick="addMedecinRow()">➕ Ajouter un médecin</button>
+      </div>
+
+      <!-- ===== INFOS FIXES ===== -->
+      <div id="infosFixesBlock">
+        <div id="infosFixesTitle" class="section-header" style="margin-top:12px">INFOS FIXES (RAPPELS)</div>
+        <table id="infosFixesTable">
+          <thead>
+            <tr><th>Libellé</th><th>Numéro / DECT</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="td-left">IOA jour</td><td><span class="tag">7658</span></td></tr>
+            <tr><td class="td-left">IOA Nuit</td><td><span class="tag">7659</span></td></tr>
+            <tr><td class="td-left">Cardiologie</td><td><span class="tag">12703</span></td></tr>
+            <tr><td class="td-left">Neuro-Vasculaire</td><td><span class="tag">12676</span></td></tr>
+            <tr><td class="td-left">Pédiatrie</td><td><span class="tag">7665</span></td></tr>
+            <tr><td class="td-left">Radiologue</td><td><span class="tag">9</span></td></tr>
+            <tr><td class="td-left">Réa</td><td><span class="tag">7447</span></td></tr>
+            <tr><td class="td-left">USIP</td><td><span class="tag">7466</span></td></tr>
+
+            <tr class="title-row"><th colspan="2">⬇️🚑 SMUR PRIMAIRE</th></tr>
+            <tr><td class="td-left">Médecin Primaire</td><td><span class="tag j">J 7578</span><span class="tag n">N 7579</span></td></tr>
+            <tr><td class="td-left">IDE Primaire</td><td><span class="tag j">J 7572</span><span class="tag n">N 7573</span></td></tr>
+            <tr><td class="td-left">Ambulancier Primaire</td><td><span class="tag j">J 7570</span><span class="tag n">N 7571</span></td></tr>
+
+            <tr class="title-row"><th colspan="2">⬇️🚑 SMUR SECONDAIRE</th></tr>
+            <tr><td class="td-left">Médecin Secondaire</td><td><span class="tag j">J 7580</span><span class="tag n">N 7581</span></td></tr>
+            <tr><td class="td-left">IDE Secondaire 9h-21h</td><td><span class="tag j">J 7576</span><span class="tag n">N 7577</span></td></tr>
+            <tr><td class="td-left">Ambulancier Secondaire</td><td><span class="tag j">J 7574</span><span class="tag n">N 7575</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- === CHAT MINI === -->
+      <div class="chat-mini">
+        <div class="section-header">Chat (mini)</div>
+        <div class="chat-editor">
+          <input id="chatAuthor" type="text" placeholder="Votre nom" />
+          <textarea id="chatText" placeholder="Écrire un message (Ctrl/Cmd + Entrée pour envoyer)"></textarea>
+          <button id="chatSendBtn">Envoyer</button>
+        </div>
+        <div class="chat-list" id="chatList"></div>
+      </div>
+    </div>
+
+    <!-- COLONNE DROITE -->
+    <div>
+      <div class="right-grid">
+        <div class="board">
+          <div class="section-header">SMUR Primaire</div>
+          <table id="smurPrimaireTable">
+            <thead><tr><th>Nom</th><th>DECT</th><th>Action</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><input type="text" placeholder="Nom"></td>
+                <td><input class="dect-field" type="text" placeholder="DECT"></td>
+                <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="actions"><button onclick="addRow(this)">Ajouter une ligne</button></div>
+        </div>
+
+        <div class="board">
+          <div class="section-header">SMUR Secondaire</div>
+          <table id="smurSecondaireTable">
+            <thead><tr><th>Nom</th><th>DECT</th><th>Action</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><input type="text" placeholder="Nom"></td>
+                <td><input class="dect-field" type="text" placeholder="DECT"></td>
+                <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="actions"><button onclick="addRow(this)">Ajouter une ligne</button></div>
+        </div>
+
+        <!-- Régulateurs JOUR -->
+        <div class="board">
+          <div class="section-header">Régulateur — Jour</div>
+          <table id="regulateurJourTable">
+            <thead><tr><th style="text-align:left;width:88px"></th><th>Nom</th><th>DECT</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <!-- Régulateurs NUIT -->
+        <div class="board">
+          <div class="section-header">Régulateur — Nuit</div>
+          <table id="regulateurNuitTable">
+            <thead><tr><th style="text-align:left;width:88px"></th><th>Nom</th><th>DECT</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 🚑 Ambulance de Garde — JOUR & NUIT, pleine largeur -->
+      <div class="board full-width" style="margin-top:12px">
+        <div class="section-header">Ambulance de Garde — JOUR</div>
+        <table id="ambulanceGardeJourTable">
+          <thead><tr><th style="text-align:left;width:110px">Véhicule</th><th>Nom</th><th>DECT</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="board full-width" style="margin-top:12px">
+        <div class="section-header" style="color:#fecaca">Ambulance de Garde — NUIT</div>
+        <table id="ambulanceGardeNuitTable">
+          <thead><tr><th style="text-align:left;width:110px">Véhicule</th><th>Nom</th><th>DECT</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <!-- Bas : 4 tableaux -->
+      <div class="lower-grid">
+        <div class="board">
+          <div class="section-header">Médecin Régulateur Libéral</div>
+          <table id="regulLiberalTable">
+            <thead><tr><th>Médecin</th><th>DECT</th><th>Action</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><input class="mrl-nom" list="regMedList" placeholder="Tapez un régulateur…"/></td>
+                <td><input class="mrl-dect dect-field" type="text" placeholder="DECT" /></td>
+                <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+              </tr>
+              <tr>
+                <td><input class="mrl-nom" list="regMedList" placeholder="Tapez un régulateur…"/></td>
+                <td><input class="mrl-dect dect-field" type="text" placeholder="DECT" /></td>
+                <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="actions"><button onclick="addRowTo('regulLiberalTable')">Ajouter un médecin libéral</button></div>
+        </div>
+
+        <div class="board">
+          <div class="section-header">Administrateur de Garde</div>
+          <table id="administrateurTable">
+            <thead><tr><th>Nom</th><th>DECT</th><th>Action</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><input class="admin-nom" list="adminsList" placeholder="Commencez à taper…"/></td>
+                <td><input class="admin-dect dect-field" type="text" placeholder="DECT" /></td>
+                <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="actions"><button onclick="addRowTo('administrateurTable')">Ajouter une ligne</button></div>
+        </div>
+
+        <div class="board">
+          <div class="section-header">Ambulance de Sortie</div>
+          <table id="ambulanceSortieTable">
+            <thead><tr><th>Nom</th><th>DECT</th><th>Action</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><input list="ambuList" placeholder="Choisir / taper une ambulance…"></td>
+                <td><input class="dect-field" type="text" placeholder="DECT"></td>
+                <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="actions"><button onclick="addRowTo('ambulanceSortieTable')">Ajouter une ligne</button></div>
+        </div>
+
+        <div class="board">
+          <div class="section-header">Ambulance de GHT</div>
+          <table id="ambulanceGHTTable">
+            <thead><tr><th>Nom</th><th>DECT</th><th>Action</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><input list="ambuList" placeholder="Choisir / taper une ambulance…"></td>
+                <td><input class="dect-field" type="text" placeholder="DECT"></td>
+                <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="actions"><button onclick="addRowTo('ambulanceGHTTable')">Ajouter une ligne</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Pharmacie de Garde — PLEIN LARGEUR ===== -->
+    <div class="card full-width" style="margin-top:12px">
+      <div class="section-header">Pharmacie de Garde</div>
+      <table id="pharmacieTable">
+        <thead>
+          <tr>
+            <th style="width:45%; text-align:left">Nom de la pharmacie</th>
+            <th style="width:40%; text-align:left">Adresse (rue, CP, ville)</th>
+            <th style="width:10%;">DECT / Tel</th>
+            <th style="width:5%;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="pharm-nom"><input type="text" placeholder="Grande Pharmacie du Centre, Pharmacie X…"></td>
+            <td class="pharm-addr"><textarea placeholder="12 rue de la Santé, 18000 Bourges"></textarea></td>
+            <td class="pharm-dect"><input class="dect-field" type="text" placeholder="09-00-00-00-00"></td>
+            <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="actions" style="margin-top:10px"><button onclick="addPharmacieRow()">Ajouter une pharmacie</button></div>
+    </div>
+  </div>
+  <!-- ======== /GRILLE ======== -->
+
+  <!-- LISTES de suggestions -->
+  <datalist id="medecinsList">
+    <!-- Réa -->
+    <option value="Dr Vaz"><option value="Dr Hamizi"><option value="Dr Kinda"><option value="Dr SOILIHI"><option value="Dr ANGHEL"><option value="Dr RAHARIMANANA">
+    <option value="Dr Voellmy"><option value="Dr Njatomalala"><option value="Dr Chabbi">
+    <option value="Dr Mortreux"><option value="Dr Chedjieu"><option value="Dr Rey"><option value="Dr PREVEDELLO"><option value="Dr BOURREAU">
+    <!-- Cardio -->
+    <option value="Dr Ricoulleau"><option value="Dr Heurtebise"><option value="Dr Laporal">
+    <option value="Dr Jnifene"><option value="Dr Akiel"><option value="Dr Guenal">
+    <option value="Dr Didot"><option value="Dr Brathier"><option value="Dr Dechery">
+    <option value="Dr Tabat"><option value="Dr Lounthone"><option value="Dr El Idrisse">
+    <option value="Dr Lemrini"><option value="Dr Seaux"><option value="Dr Athmani"><option value="Dr Chesnoy">
+    <!-- Neuro-Vasc -->
+    <option value="Dr Maiga"><option value="Dr Phan"><option value="Dr Chabbine">
+    <option value="Dr Profiroiu"><option value="Dr Fanorena">
+    <!-- Pédiatre -->
+    <option value="Dr Dai Tometin"><option value="Dr Ayaz"><option value="Dr Hefteh"><option value="Dr DAI TOMETIN"><option value="Dr OUCHTATI">
+    <option value="Dr Benzid"><option value="Dr Gaisne"><option value="Dr Gatti"><option value="Dr BOUHMOUCH">
+    <option value="Dr Ikomba"><option value="Dr Tresor"><option value="Dr Benhocine">
+    <option value="Dr Toronga"><option value="Dr Mvogo"><option value="Dr Taylor">
+    <option value="Dr Chatue"><option value="Dr Torona">
+    <!-- Radio/IRM -->
+    <option value="Dr Bello"><option value="Dr Chawa"><option value="IMADIS">
+    <option value="Dr Gnonwa"><option value="Dr Coatrieux"><option value="Dr Bouchibane">
+    <option value="Dr Adjimabou"><option value="Dr Soumo"><option value="Dr Didenjou">
+  </datalist>
+
+  <!-- Liste spécifique : Médecins éligibles au poste de Régulateur -->
+  <datalist id="regMedList"></datalist>
+
+  <datalist id="adminsList">
+    <option value="Apert Mme"><option value="Aulibert Mme"><option value="Benoist M.">
+    <option value="Descouts Mme"><option value="Dhorbait Mme"><option value="Fauquembergue M.">
+    <option value="Halin M."><option value="Hunault M."><option value="Le Heiget M.">
+    <option value="Le tarnec Mme"><option value="Mahut M."><option value="Mercier M.">
+    <option value="Osten Mme"><option value="Paoletti - Bes Mme"><option value="Perier Mme">
+    <option value="Tomatis Mme"><option value="Vigneron Mme"><option value="Vo Dinh M.">
+  </datalist>
+
+  <!-- Ambulances (saisie assistée) -->
+  <datalist id="ambuList">
+    <option value="2000">
+    <option value="Atlas">
+    <option value="Avaricum">
+    <option value="Mazer">
+    <option value="Pinson">
+    <option value="VMA">
+    <option value="André">
+    <option value="Mehun ambulances">
+    <option value="Petitjean">
+    <option value="St Exupéry">
+    <option value="Pasquet">
+    <option value="Auger">
+    <option value="Lignières">
+    <option value="Ducreux / Castelneuviennes">
+    <option value="Guillemin">
+    <option value="St Amand">
+    <option value="Beuze Préveranges">
+    <option value="Castellois">
+    <option value="Savignat">
+    <option value="Marquet">
+    <option value="JHL">
+    <option value="Millérioux">
+    <option value="Bengy">
+    <option value="Vallée de l'Aubois">
+    <option value="Autre">
+  </datalist>
+
+  <!-- ================== APP + Firebase ================== -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getDatabase, ref, set, onValue, remove, push, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDG8Tjus5no-pJpmd3tOwydo-QY8ERhH8Y",
+      authDomain: "tabgarde-16180.firebaseapp.com",
+      databaseURL: "https://tabgarde-16180-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "tabgarde-16180",
+      storageBucket: "tabgarde-16180.firebasestorage.app",
+      messagingSenderId: "1087347813441",
+      appId: "1:1087347813441:web:68c63e7203020dd114aac0",
+      measurementId: "G-5KL9P8QW7J"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db  = getDatabase(app);
+
+    // Slots régulateurs
+    const REGULATEURS_JOUR = ["R1","R2"];
+    const REGULATEURS_NUIT = ["N1","N2"];
+
+    // Médecins autorisés pour régulation
+    const REG_MEDECINS = [
+      "Dr Agbessi","Dr Arar","Dr Belghalem","Dr Campet","Dr Carlos","Dr Chereau",
+      "Dr Chomono","Dr Cochonneau","Dr Dechery","Dr Dorion","Dr Gonzales de Linares",
+      "Dr Hibon Ricard","Dr Labbens","Dr Mazuir","Dr Meyer","Dr Michel","Dr Mirat","Interimaire",
+      "Dr Nasalan","Dr Nuskovski","Dr Paris","Dr Rabec","Dr Shehata","Dr Santiago","Dr Sokpoh",
+      "Dr Gellert","Dr Dion","Dr Bergeret"
+    ];
+    function buildRegMedDatalist(){
+      const dl = document.getElementById('regMedList');
+      if (!dl) return;
+      dl.innerHTML = REG_MEDECINS.map(n => `<option value="${n}">`).join('');
+    }
+
+    // Helpers DOM
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+    const dayKeyEl = $('#dayKey'), syncDot=$('#syncDot'), syncText=$('#syncText'), lastSaved=$('#lastSaved');
+    const todayKey = () => new Date().toISOString().slice(0,10);
+    let currentKey = localStorage.getItem('gardeDayKey') || todayKey();
+    dayKeyEl.textContent = currentKey;
+    const dataRef = () => ref(db, `tableauGarde/${currentKey}`);
+    const setSaving = (b)=>{ if(b){syncDot.className='dot saving';syncText.textContent='Sauvegarde…';}else{syncDot.className='dot online';syncText.textContent='Synchronisé';lastSaved.textContent=`• ${new Date().toLocaleTimeString('fr-FR')}`;} };
+
+    // Nom -> service
+    const serviceMap = {
+      "Dr Vaz":"Réanimation","Dr Hamizi":"Réanimation","Dr Kinda":"Réanimation","Dr Voellmy":"Réanimation","Dr NJATOMALALA":"Réanimation","Dr SOILIHI":"Réanimation","Dr RAHARIMANANA":"Réanimation",
+      "Dr Njatomalala":"Réanimation","Dr Chabbi":"Réanimation","Dr Mortreux":"Réanimation","Dr Chedjieu":"Réanimation","Dr Rey":"Réanimation","Dr ANGHEL":"Réanimation","Dr PREVEDELLO":"Réanimation","Dr BOURREAU":"Réanimation",
+      "Dr Ricoulleau":"Cardio","Dr Heurtebise":"Cardio","Dr Laporal":"Cardio","Dr Jnifene":"Cardio","Dr Akiel":"Cardio","Dr Guenal":"Cardio",
+      "Dr Didot":"Cardio","Dr Brathier":"Cardio","Dr Dechery":"Cardio","Dr Tabat":"Cardio","Dr Lounthone":"Cardio","Dr El Idrisse":"Cardio","Dr Lemrini":"Cardio","Dr Seaux":"Cardio","Dr Athmani":"Cardio","Dr Chesnoy":"Cardio",
+      "Dr Maiga":"Neuro-vasc","Dr Phan":"Neuro-vasc","Dr Chabbine":"Neuro-vasc","Dr Profiroiu":"Neuro-vasc","Dr Fanorena":"Neuro-vasc",
+      "Dr Dai Tometin":"Pédiatrie","Dr Ayaz":"Pédiatrie","Dr Hefteh":"Pédiatrie","Dr Benzid":"Pédiatrie","Dr Gaisne":"Pédiatrie","Dr Gatti":"Pédiatrie","Dr OUCHTATI":"Pédiatrie",
+      "Dr Ikomba":"Pédiatrie","Dr Tresor":"Pédiatrie","Dr Benhocine":"Pédiatrie","Dr Toronga":"Pédiatrie","Dr Mvogo":"Pédiatrie","Dr Taylor":"Pédiatrie","Dr Chatue":"Pédiatrie","Dr Torona":"Pédiatrie","Dr DAI TOMETIN":"Pédiatrie","Dr BOUHMOUCH":"Pédiatrie",
+      "Dr Bello":"Radiologie","Dr Chawa":"Radiologie","IMADI":"Radiologie","IMADIS":"Radiologie","Dr Gnonwa":"Radiologie","Dr Coatrieux":"Radiologie",
+      "Dr Bouchibane":"Radiologie","Dr Adjimabou":"Radiologie","Dr Soumo":"Radiologie","Dr Didenjou":"Radiologie"
+    };
+    const inferService = (name)=> serviceMap[name?.trim()] || "—";
+
+    // Masque DECT : 76-58 / 06-00-00-00-00
+    function formatDect(value){
+      const digits = (value||'').replace(/\D+/g,'');
+      return digits.replace(/(\d{2})(?=\d)/g, '$1-');
+    }
+    function attachDectMask(input){
+      if (!input) return;
+      const handler = ()=>{
+        const before = input.value;
+        const pos = input.selectionStart;
+        input.value = formatDect(before);
+        const delta = input.value.length - before.length;
+        const newPos = (pos||0) + (delta > 0 ? 1 : delta < 0 ? -1 : 0);
+        input.selectionStart = input.selectionEnd = Math.max(0, Math.min(input.value.length, newPos));
+      };
+      input.addEventListener('input', handler);
+    }
+
+    /* ====== SERIALIZE ====== */
+    function readTableRows(tableId, mapRow){
+      const tbody = document.getElementById(tableId).querySelector('tbody');
+      return Array.from(tbody.rows).map(mapRow);
+    }
+    function serializeAll(){
+      return {
+        medecins: readTableRows('medecinTable', (tr) => {
+          const name = tr.cells[0].querySelector('input')?.value || '';
+          const dect = tr.cells[2].querySelector('input')?.value || '';
+          return { nom: name, service: inferService(name), dect };
+        }),
+        smurPrimaire: readTableRows('smurPrimaireTable', (tr) => ({
+          nom: tr.cells[0].querySelector('input')?.value || '',
+          dect: tr.cells[1].querySelector('input')?.value || ''
+        })),
+        smurSecondaire: readTableRows('smurSecondaireTable', (tr) => ({
+          nom: tr.cells[0].querySelector('input')?.value || '',
+          dect: tr.cells[1].querySelector('input')?.value || ''
+        })),
+        regulateurJour: (() => {
+          const tb = document.querySelector('#regulateurJourTable tbody');
+          return Array.from(tb.rows).map(tr => ({
+            slot: tr.cells[0].textContent.trim(),
+            nom: tr.querySelector('.rj-nom')?.value || '',
+            dect: tr.querySelector('.rj-dect')?.value || ''
+          }));
+        })(),
+        regulateurNuit: (() => {
+          const tb = document.querySelector('#regulateurNuitTable tbody');
+          return Array.from(tb.rows).map(tr => ({
+            slot: tr.cells[0].textContent.trim(),
+            nom: tr.querySelector('.rn-nom')?.value || '',
+            dect: tr.querySelector('.rn-dect')?.value || ''
+          }));
+        })(),
+        regulLiberal: readTableRows('regulLiberalTable', (tr) => ({
+          nom: tr.querySelector('.mrl-nom')?.value || '',
+          dect: tr.querySelector('.mrl-dect')?.value || ''
+        })),
+        administrateur: readTableRows('administrateurTable', (tr) => ({
+          nom: tr.querySelector('.admin-nom')?.value || '',
+          dect: tr.querySelector('.admin-dect')?.value || ''
+        })),
+        ambulanceGardeJour: (() => {
+          const tbody = document.querySelector('#ambulanceGardeJourTable tbody');
+          return Array.from(tbody.rows).map(tr => ({
+            vehicule: tr.cells[0].textContent.trim(),
+            nom:      tr.querySelector('.agj-nom')?.value || '',
+            dect:     tr.querySelector('.agj-dect')?.value || ''
+          }));
+        })(),
+        ambulanceGardeNuit: (() => {
+          const tbody = document.querySelector('#ambulanceGardeNuitTable tbody');
+          return Array.from(tbody.rows).map(tr => ({
+            vehicule: tr.cells[0].textContent.trim(),
+            nom:      tr.querySelector('.agn-nom')?.value || '',
+            dect:     tr.querySelector('.agn-dect')?.value || ''
+          }));
+        })(),
+        ambulanceSortie: readTableRows('ambulanceSortieTable', (tr) => ({
+          nom: tr.cells[0].querySelector('input[list]')?.value || '',
+          dect: tr.cells[1].querySelector('input')?.value || ''
+        })),
+        ambulanceGHT: readTableRows('ambulanceGHTTable', (tr) => ({
+          nom: tr.cells[0].querySelector('input[list]')?.value || '',
+          dect: tr.cells[1].querySelector('input')?.value || ''
+        })),
+        pharmacie: readTableRows('pharmacieTable', (tr) => ({
+          nom: tr.cells[0].querySelector('input')?.value || '',
+          adresse: tr.cells[1].querySelector('textarea')?.value || '',
+          dect: tr.cells[2].querySelector('input')?.value || ''
+        }))
+      };
+    }
+
+    /* ====== RENDER/HYDRATE ====== */
+    const VEHICULES_GARDE_JOUR = ["B1","B2","B3","VZ","St Amd","Nord","Est"];
+const VEHICULES_GARDE_NUIT = ["B1","B2","B3","VZ","St Amd"]; // ❌ sans "Nord" ni "Est"
+
+    function renderRows(tbody, rows, renderCellHtmls){
+      tbody.innerHTML = '';
+      rows.forEach((row) => {
+        const tr = tbody.insertRow();
+        tr.innerHTML = renderCellHtmls(row);
+      });
+    }
+
+    function hydrateAll(data){
+      data = data || {};
+
+      // Médecins
+      renderRows($('#medecinTable tbody'), data.medecins || [], (row) => `
+        <td><input list="medecinsList" value="${row.nom||''}" placeholder="Ex. Dr Dupont"/></td>
+        <td><span class="service-badge">${inferService(row.nom||'')}</span></td>
+        <td><input class="dect-field" type="text" placeholder="DECT" value="${row.dect||''}" /></td>
+        <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+      `);
+
+      // SMUR
+      renderRows($('#smurPrimaireTable tbody'), data.smurPrimaire || [], (row)=>`
+        <td><input type="text" placeholder="Nom" value="${row.nom||''}" /></td>
+        <td><input class="dect-field" type="text" placeholder="DECT" value="${row.dect||''}" /></td>
+        <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+      `);
+      renderRows($('#smurSecondaireTable tbody'), data.smurSecondaire || [], (row)=>`
+        <td><input type="text" placeholder="Nom" value="${row.nom||''}" /></td>
+        <td><input class="dect-field" type="text" placeholder="DECT" value="${row.dect||''}" /></td>
+        <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+      `);
+
+      // Régulateurs (R1/R2/N1/N2) avec liste REG_MEDECINS
+      renderRows(document.querySelector('#regulateurJourTable tbody'),
+        REGULATEURS_JOUR.map(slot => {
+          const found = (data.regulateurJour || []).find(r => (r.slot||'') === slot) || {};
+          return { slot, nom: found.nom || '', dect: found.dect || '' };
+        }),
+        (row)=>`
+          <td class="reg-badge">${row.slot}</td>
+          <td><input class="rj-nom" list="regMedList" value="${row.nom||''}" placeholder="Tapez un régulateur…"></td>
+          <td><input class="rj-dect dect-field" type="text" placeholder="DECT" value="${row.dect||''}"/></td>
+        `
+      );
+      renderRows(document.querySelector('#regulateurNuitTable tbody'),
+        REGULATEURS_NUIT.map(slot => {
+          const found = (data.regulateurNuit || []).find(r => (r.slot||'') === slot) || {};
+          return { slot, nom: found.nom || '', dect: found.dect || '' };
+        }),
+        (row)=>`
+          <td class="reg-badge">${row.slot}</td>
+          <td><input class="rn-nom" list="regMedList" value="${row.nom||''}" placeholder="Tapez un régulateur…"></td>
+          <td><input class="rn-dect dect-field" type="text" placeholder="DECT" value="${row.dect||''}"/></td>
+        `
+      );
+
+      // JOUR
+renderRows(document.querySelector('#ambulanceGardeJourTable tbody'),
+  VEHICULES_GARDE_JOUR.map(v => {
+    const found = (data.ambulanceGardeJour || []).find(r => (r.vehicule||'') === v) || {};
+    return { vehicule: v, nom: found.nom || '', dect: found.dect || '' };
+  }),
+  (row) => `
+    <td class="vehicule-badge">${row.vehicule}</td>
+    <td><input class="agj-nom" list="ambuList" value="${row.nom||''}" placeholder="Choisir / taper une ambulance…"></td>
+    <td><input class="agj-dect dect-field" type="text" placeholder="DECT" value="${row.dect||''}" /></td>
+  `
+);
+
+// NUIT (⚠️ utilise VEHICULES_GARDE_NUIT)
+renderRows(document.querySelector('#ambulanceGardeNuitTable tbody'),
+  VEHICULES_GARDE_NUIT.map(v => {
+    const found = (data.ambulanceGardeNuit || []).find(r => (r.vehicule||'') === v) || {};
+    return { vehicule: v, nom: found.nom || '', dect: found.dect || '' };
+  }),
+  (row) => `
+    <td class="vehicule-badge">${row.vehicule}</td>
+    <td><input class="agn-nom" list="ambuList" value="${row.nom||''}" placeholder="Choisir / taper une ambulance…"></td>
+    <td><input class="agn-dect dect-field" type="text" placeholder="DECT" value="${row.dect||''}" /></td>
+  `
+);
+
+      // Ambulances dynamiques
+      renderRows($('#ambulanceSortieTable tbody'), data.ambulanceSortie || [], (row)=>`
+        <td><input list="ambuList" value="${row.nom||''}" placeholder="Choisir / taper une ambulance…"></td>
+        <td><input class="dect-field" type="text" placeholder="DECT" value="${row.dect||''}" /></td>
+        <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+      `);
+      renderRows($('#ambulanceGHTTable tbody'), data.ambulanceGHT || [], (row)=>`
+        <td><input list="ambuList" value="${row.nom||''}" placeholder="Choisir / taper une ambulance…"></td>
+        <td><input class="dect-field" type="text" placeholder="DECT" value="${row.dect||''}" /></td>
+        <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+      `);
+
+      // Pharmacie
+      renderRows($('#pharmacieTable tbody'), data.pharmacie || [], (row)=>`
+        <td class="pharm-nom"><input type="text" value="${row.nom||''}" placeholder="Grande Pharmacie du Centre, Pharmacie X…" /></td>
+        <td class="pharm-addr"><textarea placeholder="Adresse (rue, CP, ville)">${row.adresse||''}</textarea></td>
+        <td class="pharm-dect"><input class="dect-field" type="text" value="${row.dect||''}" placeholder="09-00-00-00-00" /></td>
+        <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+      `);
+
+      // Attacher masque DECT
+      $$('.dect-field').forEach(attachDectMask);
+    }
+
+    /* ====== SAVE / LOAD ====== */
+    let debounceTimer = null;
+    const DEBOUNCE_MS = 2000;   // délai plus long
+    let skipNextUpdate = false;
+
+    function scheduleSave(){ clearTimeout(debounceTimer); debounceTimer = setTimeout(saveAll, DEBOUNCE_MS); setSaving(true); }
+    async function saveAll(){
+      const data = serializeAll();
+      skipNextUpdate = true;
+      await update(dataRef(), data);  // MERGE (préserve le chat)
+      setSaving(false);
+    }
+    function loadAndListen(){
+      onValue(dataRef(), (snap)=>{
+        if (skipNextUpdate){ skipNextUpdate = false; return; }
+        hydrateAll(snap.val() || {});
+        wireAutoSave();
+        setSaving(false);
+      });
+    }
+
+    /* ====== UI WIRING ====== */
+    function wireAutoSave(){
+      // Médecins : badge service live
+      $$('#medecinTable tbody input[list="medecinsList"]').forEach(inp=>{
+        const updateSvc = () => {
+          inp.closest('tr').cells[1].querySelector('.service-badge').textContent = inferService(inp.value);
+          scheduleSave();
+        };
+        inp.oninput = updateSvc; inp.onchange = updateSvc;
+      });
+      // Enregistrement différé partout
+      $$( 'input, textarea' ).forEach(el=>{ el.oninput = scheduleSave; el.onchange = scheduleSave; });
+      // Re-attache le masque DECT
+      $$('.dect-field').forEach(attachDectMask);
+    }
+
+    // Raccourci CTRL/CMD+S
+    document.addEventListener('keydown', (e)=>{
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); saveAll(); }
+    });
+
+    // Toolbar
+    document.getElementById('forceSaveBtn').addEventListener('click', saveAll);
+    document.getElementById('newDayBtn').addEventListener('click', ()=>{
+      currentKey = todayKey(); localStorage.setItem('gardeDayKey', currentKey); dayKeyEl.textContent = currentKey;
+      hydrateAll({}); saveAll(); loadAndListen();
+      wireChatUI(); loadChat();
+    });
+    document.getElementById('clearDayBtn').addEventListener('click', async ()=>{
+      if (confirm('Effacer toutes les données de la journée ?')){
+        await remove(dataRef());       // supprime TOUT, y compris chat
+        hydrateAll({}); saveAll();
+      }
+    });
+
+    // Actions génériques
+    window.deleteRow = (button)=>{ button.closest('tr').remove(); scheduleSave(); }
+
+    // Ajout SMUR (détecte le tableau)
+    window.addRow = (button)=>{
+      const wrap = button.closest('.board'); const tbody = wrap.querySelector('tbody');
+      const tr = tbody.insertRow();
+      tr.innerHTML = `
+        <td><input type="text" placeholder="Nom" /></td>
+        <td><input class="dect-field" type="text" placeholder="DECT" /></td>
+        <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>`;
+      attachDectMask(tr.querySelector('.dect-field'));
+      wireAutoSave(); scheduleSave();
+    }
+
+    // Ajout ciblé (MRL, Admin, Ambu Sortie, GHT)
+    window.addRowTo = function(tableId){
+      const tbody = document.querySelector(`#${tableId} tbody`);
+      if (!tbody) return;
+      const tr = tbody.insertRow();
+      if (tableId === 'regulLiberalTable'){
+        tr.innerHTML = `
+          <td><input class="mrl-nom" list="regMedList" placeholder="Tapez un régulateur…"/></td>
+          <td><input class="mrl-dect dect-field" type="text" placeholder="DECT" /></td>
+          <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>`;
+      } else if (tableId === 'administrateurTable'){
+        tr.innerHTML = `
+          <td><input class="admin-nom" list="adminsList" placeholder="Commencez à taper…"/></td>
+          <td><input class="admin-dect dect-field" type="text" placeholder="DECT" /></td>
+          <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>`;
+      } else if (tableId === 'ambulanceSortieTable' || tableId === 'ambulanceGHTTable'){
+        tr.innerHTML = `
+          <td><input list="ambuList" placeholder="Choisir / taper une ambulance…"></td>
+          <td><input class="dect-field" type="text" placeholder="DECT" /></td>
+          <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>`;
+      }
+      attachDectMask(tr.querySelector('.dect-field'));
+      wireAutoSave(); scheduleSave();
+    }
+
+    // Ajouter médecin
+    window.addMedecinRow = function () {
+      const tbody = document.querySelector('#medecinTable tbody');
+      const tr = tbody.insertRow();
+      tr.innerHTML = `
+        <td><input list="medecinsList" placeholder="Ex. Dr Dupont" /></td>
+        <td><span class="service-badge">—</span></td>
+        <td><input class="dect-field" type="text" placeholder="DECT" /></td>
+        <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>
+      `;
+      const nameInput = tr.querySelector('input[list="medecinsList"]');
+      const badge = tr.cells[1].querySelector('.service-badge');
+      const updateService = () => { badge.textContent = inferService(nameInput.value); scheduleSave(); };
+      nameInput.addEventListener('input', updateService);
+      nameInput.addEventListener('change', updateService);
+      attachDectMask(tr.querySelector('.dect-field'));
+      wireAutoSave(); scheduleSave();
+    }
+
+    // Pharmacie : ajouter ligne
+    window.addPharmacieRow = function(){
+      const tbody = document.querySelector('#pharmacieTable tbody');
+      const tr = tbody.insertRow();
+      tr.innerHTML = `
+        <td class="pharm-nom"><input type="text" placeholder="Grande Pharmacie du Centre, Pharmacie X…"/></td>
+        <td class="pharm-addr"><textarea placeholder="Adresse (rue, CP, ville)"></textarea></td>
+        <td class="pharm-dect"><input class="dect-field" type="text" placeholder="09-00-00-00-00"/></td>
+        <td class="actions"><button onclick="deleteRow(this)">Supprimer</button></td>`;
+      attachDectMask(tr.querySelector('.dect-field'));
+      wireAutoSave(); scheduleSave();
+    }
+
+    /* ===== CHAT MINI (Realtime) ===== */
+    const chatRef = () => ref(db, `tableauGarde/${currentKey}/chat`);
+
+    function renderChat(listObj){
+      const cont = document.getElementById('chatList');
+      const items = Object.entries(listObj || {}).sort((a,b) => (a[1].ts||0) - (b[1].ts||0));
+      cont.innerHTML = items.map(([id, m]) => `
+        <div class="chat-item">
+          <div>
+            <div class="chat-meta"><strong>${(m.author||'Anonyme').replace(/</g,'&lt;')}</strong> • ${m.ts?new Date(m.ts).toLocaleString('fr-FR'):''}</div>
+            <div class="chat-text">${(m.text||'').replace(/</g,'&lt;')}</div>
+          </div>
+          <button class="chat-del" title="Supprimer" onclick="deleteChat('${id}')">×</button>
+        </div>
+      `).join('');
+    }
+
+    async function sendChat(){
+      const a = document.getElementById('chatAuthor');
+      const t = document.getElementById('chatText');
+      const author = (a.value || localStorage.getItem('chatAuthor') || '').trim();
+      const text   = (t.value || '').trim();
+      if (!text) return;
+      if (author) localStorage.setItem('chatAuthor', author);
+      await push(chatRef(), { author: author || 'Anonyme', text, ts: Date.now() });
+      t.value=''; t.focus();
+    }
+
+    window.deleteChat = async function(id){
+      await remove(ref(db, `tableauGarde/${currentKey}/chat/${id}`));
+    }
+
+    function wireChatUI(){
+      const a = document.getElementById('chatAuthor');
+      const t = document.getElementById('chatText');
+      const b = document.getElementById('chatSendBtn');
+      const saved = localStorage.getItem('chatAuthor'); if (a && saved && !a.value) a.value = saved;
+      if (b) b.onclick = sendChat;
+      if (t){
+        t.addEventListener('keydown', (e)=>{
+          if ((e.ctrlKey||e.metaKey) && e.key === 'Enter'){ e.preventDefault(); sendChat(); }
+        });
+      }
+    }
+    function loadChat(){
+      onValue(chatRef(), (snap)=> renderChat(snap.val()||{}));
+    }
+
+    // Boot
+    document.getElementById('date').textContent =
+      new Date().toLocaleDateString('fr-FR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+    function firstLoad(){
+      buildRegMedDatalist();
+      onValue(dataRef(), (snap)=>{
+        hydrateAll(snap.val() || {});
+        wireAutoSave();
+        setSaving(false);
+      }, { onlyOnce:true });
+
+      loadAndListen();
+      wireChatUI(); loadChat();
+    }
+    firstLoad();
+  </script>
+
+  <footer class="footer" style="text-align:center;color:#9ca3af;font-size:14px;padding:12px 0;border-top:1px solid rgba(255,255,255,.1);margin-top:16px;background:rgba(255,255,255,.02);">
+    © 2025 Tableau de garde V5 - Matéo CALLEJA — Tous droits réservés
+  </footer>
+</body>
+</html>
